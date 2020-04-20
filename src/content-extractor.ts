@@ -12,11 +12,8 @@ export interface ParsedData {
 }
 
 export class ContentExtractor {
-  async parse(url: string, pageHtml?: string): Promise<ParsedData> {
-    let html = pageHtml;
-    if (!html && url) {
-      html = await this.getHtmlByURL(url);
-    }
+  async parse(url?: string, pageHtml?: string): Promise<ParsedData> {
+    let html = await this.getHtml(url, pageHtml);
     const $ = cheerio.load(html);
     let pointer = $('div#content h1');
     const name = pointer.text();
@@ -27,10 +24,7 @@ export class ContentExtractor {
     pointer = pointer.next();
     const descriptionLines = [];
     while (pointer.is('p')) {
-      const txt = pointer
-        .text()
-        .trim()
-        .replace(/(?:\r\n|\r|\n)/g, '');
+      const txt = this.cleanText(pointer.text());
       if (!!txt) {
         descriptionLines.push(txt);
       }
@@ -43,7 +37,7 @@ export class ContentExtractor {
 
     const [place, organizer] = imgContainer
       .nextAll('h5')
-      .map((i, el) => $(el).text())
+      .map((i, el) => this.cleanText($(el).text()))
       .toArray() as unknown[];
 
     return {
@@ -56,9 +50,23 @@ export class ContentExtractor {
     };
   }
 
+  private async getHtml(url?: string, pageHtml?: string): Promise<string> {
+    if (!url && !pageHtml) {
+      throw new Error('URL or page HTML must be provided');
+    }
+    if (url) {
+      return this.getHtmlByURL(url);
+    }
+    return pageHtml;
+  }
+
   private async getHtmlByURL(url: string): Promise<string> {
     const { data } = await axios.get(url);
     return data;
+  }
+
+  private cleanText(text: string): string {
+    return text.trim().replace(/(?:\r\n|\r|\n)/g, '');
   }
 
   private parseDate(text: string): Date {
